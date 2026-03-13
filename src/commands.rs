@@ -1,6 +1,9 @@
 use crate::{Context, Error};
+use once_cell::sync::Lazy;
 use poise::builtins::HelpConfiguration;
 use reqwest::header::USER_AGENT;
+use serenity::builder::CreateEmbed;
+use tokio::sync::Mutex;
 
 #[poise::command(prefix_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
@@ -86,7 +89,7 @@ pub async fn cat(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(prefix_command, track_edits, category = "Utility")]
+#[poise::command(prefix_command, category = "Utility")]
 pub async fn help(
     ctx: Context<'_>,
     #[description = "Get details for a specific command"]
@@ -109,3 +112,112 @@ Run `>help command` for info on a specific command.";
     poise::builtins::help(ctx, command.as_deref(), config).await?;
     Ok(())
 }
+
+static OSU_TOKEN: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+async fn get_osu_token(client: &reqwest::Client) -> Result<String, Error> {
+    let mut token = OSU_TOKEN.lock().await;
+    if let Some(t) = token.as_ref() {
+        return Ok(t.clone());
+    }
+
+    let res: serde_json::Value = client
+        .post("https://osu.ppy.sh/oauth/token")
+        .header(USER_AGENT, "patchbot_discord")
+        .json(&serde_json::json!({
+            "client_id": std::env::var("OSU_CLIENT_ID").expect("missing OSU_CLIENT_ID! please make a .env file in the root of this project and add OSU_CLIENT_ID=OSU_CLIENT_ID HERE to it!"),
+            "client_secret": std::env::var("OSU_CLIENT_SECRET").expect("missing OSU_CLIENT_SECRET! please make a .env file in the root of this project and add OSU_CLIENT_SECRET=OSU_CLIENT_SECRET HERE to it!"),
+            "grant_type": "client_credentials",
+            "scope": "public"
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let access_token = res["access_token"]
+        .as_str()
+        .ok_or("failed to get osu token")?
+        .to_string();
+
+    *token = Some(access_token.clone());
+    Ok(access_token)
+}
+
+#[poise::command(prefix_command)]
+pub async fn osu(
+    ctx: Context<'_>,
+    #[description = "osu! user to grab"] o_user: String,
+) -> Result<(), Error> {
+    ctx.channel_id().broadcast_typing(&ctx.http()).await?;
+
+    let client = reqwest::Client::new();
+
+    let token = get_osu_token(&client).await?;
+
+    let response: serde_json::Value = client
+        .get(format!("https://osu.ppy.sh/api/v2/users/{}/osu", o_user))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let username = response["username"].as_str().unwrap_or("no user found :(");
+    let uid = response["id"].as_u64().unwrap_or(0);
+    let rank = response["statistics"]["global_rank"]
+        .as_u64()
+        .map(|r| r.to_string())
+        .unwrap_or_else(|| "unranked".to_string());
+    let is_online = response["is_online"].as_bool().unwrap_or(false);
+    let title = format!("<:osu:1482134509729349812> osu! user: {}", username);
+    let pfp = format!("https://a.ppy.sh/{}", uid);
+    let url = format!("https://osu.ppy.sh/users/{}", uid);
+    let online_str = if is_online {
+        "<a:online:1482134508743426209> Online"
+    } else {
+        "<a:offline:1482135749985046651> Offline"
+    };
+
+    let recent: serde_json::Value = client
+        .get(format!(
+            "https://osu.ppy.sh/api/v2/users/{}/scores/recent?limit=1&include_fails=1",
+            uid
+        ))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let last_played = recent[0]["beatmapset"]["title"]
+        .as_str()
+        .unwrap_or("nothing recent :(");
+
+    let beatmap_url = recent[0]["beatmap"]["url"].as_str().unwrap_or("");
+
+    let last_played_str = if beatmap_url.is_empty() {
+        last_played.to_string()
+    } else {
+        format!("[{}]({})", last_played, beatmap_url)
+    };
+
+    let embed = CreateEmbed::new()
+        .title(&title)
+        .url(&url)
+        .field("Rank", format!("#{}", &rank), false)
+        .field("Status", online_str, false)
+        .field("Last played:", &last_played_str, false)
+        .color(0xFF66AA)
+        .thumbnail(&pfp)
+        .timestamp(serenity::model::Timestamp::now());
+
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
+
+// todo: add handling for user not found (send error message instead of broken embed)

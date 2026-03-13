@@ -1154,6 +1154,7 @@ name = "patchbot_rs"
 version = "0.1.0"
 dependencies = [
  "dotenvy",
+ "once_cell",
  "poise",
  "reqwest 0.13.2",
  "serde",
