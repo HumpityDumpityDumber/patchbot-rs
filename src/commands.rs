@@ -4,7 +4,7 @@ use reqwest::header::USER_AGENT;
 #[poise::command(prefix_command)]
 pub async fn ping(ctx: Context<'_>) -> Result<(), Error> {
     let response = "pawng";
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -59,7 +59,7 @@ pub async fn rgif(ctx: Context<'_>) -> Result<(), Error> {
 
     let gif_url = format!("https://klipy.com/gifs/{}", slug);
 
-    ctx.say(gif_url).await?;
+    ctx.reply(gif_url).await?;
 
     Ok(())
 }
@@ -80,7 +80,7 @@ pub async fn cat(ctx: Context<'_>) -> Result<(), Error> {
 
     let cat_url = response[0]["url"].as_str().unwrap_or("no cat found :(");
 
-    ctx.say(cat_url).await?;
+    ctx.reply(cat_url).await?;
 
     Ok(())
 }
