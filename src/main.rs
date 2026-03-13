@@ -23,6 +23,7 @@ async fn main() {
                 commands::shutdown(),
                 commands::rgif(),
                 commands::cat(),
+                commands::help(),
             ],
 
             prefix_options: poise::PrefixFrameworkOptions {
