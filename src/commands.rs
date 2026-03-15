@@ -194,10 +194,20 @@ pub async fn osu(
     let title = format!("<:osu:1482134509729349812> osu! user: {}", username);
     let pfp = format!("https://a.ppy.sh/{}", uid);
     let url = format!("https://osu.ppy.sh/users/{}", uid);
+
     let online_str = if is_online {
-        "<a:online:1482134508743426209> Online"
+        "<a:online:1482134508743426209> Online".to_string()
     } else {
-        "<a:offline:1482135749985046651> Offline"
+        match response["last_visit"].as_str() {
+            Some(last_visit) => match chrono::DateTime::parse_from_rfc3339(last_visit) {
+                Ok(dt) => format!(
+                    "<a:offline:1482135749985046651> Offline • last seen <t:{}:R>",
+                    dt.timestamp()
+                ),
+                Err(_) => "<a:offline:1482135749985046651> Offline".to_string(),
+            },
+            None => "<a:offline:1482135749985046651> Offline".to_string(),
+        }
     };
 
     let recent: serde_json::Value = client
@@ -232,8 +242,7 @@ pub async fn osu(
         .field("Status", online_str, false)
         .field("Last played:", &last_played_str, false)
         .color(0xFF66AA)
-        .thumbnail(&pfp)
-        .timestamp(serenity::model::Timestamp::now());
+        .thumbnail(&pfp);
 
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
