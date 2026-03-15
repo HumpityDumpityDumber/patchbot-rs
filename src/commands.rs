@@ -226,5 +226,3 @@ pub async fn osu(
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
-
-// todo: add handling for user not found (send error message instead of broken embed)
