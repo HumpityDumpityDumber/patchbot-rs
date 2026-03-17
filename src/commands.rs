@@ -252,3 +252,143 @@ pub async fn osu(
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
+
+#[poise::command(prefix_command)]
+pub async fn osur(
+    ctx: Context<'_>,
+    #[description = "osu! user to grab recent map for"] o_user: String,
+) -> Result<(), Error> {
+    ctx.channel_id().broadcast_typing(&ctx.http()).await?;
+
+    let client = reqwest::Client::new();
+    let token = get_osu_token(&client).await?;
+
+    let user_response: serde_json::Value = client
+        .get(format!("https://osu.ppy.sh/api/v2/users/{}/osu", o_user))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let uid = user_response["id"].as_u64().unwrap_or(0);
+    let username = user_response["username"].as_str().unwrap_or("").to_string();
+
+    if uid == 0 {
+        ctx.send(poise::CreateReply::default().content("osu! user not found... :("))
+            .await?;
+        return Ok(());
+    }
+
+    let recent: serde_json::Value = client
+        .get(format!(
+            "https://osu.ppy.sh/api/v2/users/{}/scores/recent?limit=1&include_fails=1",
+            uid
+        ))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let score = &recent[0];
+
+    if score.is_null() {
+        ctx.send(poise::CreateReply::default().content("no recent scores for this user... :("))
+            .await?;
+        return Ok(());
+    }
+
+    let m_title = score["beatmapset"]["title"].as_str().unwrap_or("Unknown");
+    let m_artist = score["beatmapset"]["artist"].as_str().unwrap_or("Unknown");
+    let m_difficulty = score["beatmap"]["version"].as_str().unwrap_or("Unknown");
+    let bm_url = score["beatmap"]["url"].as_str().unwrap_or("");
+    let c_url = score["beatmapset"]["covers"]["cover"]
+        .as_str()
+        .unwrap_or("");
+
+    let rank = score["rank"].as_str().unwrap_or("?");
+    let pp = score["pp"].as_f64();
+    let accuracy = score["accuracy"].as_f64().unwrap_or(0.0) * 100.0;
+    let max_combo = score["max_combo"].as_u64().unwrap_or(0);
+    let mods: Vec<String> = score["mods"]
+        .as_array()
+        .map(|m| {
+            m.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let c_300 = score["statistics"]["count_300"].as_u64().unwrap_or(0);
+    let c_100 = score["statistics"]["count_100"].as_u64().unwrap_or(0);
+    let c_50 = score["statistics"]["count_50"].as_u64().unwrap_or(0);
+    let c_miss = score["statistics"]["count_miss"].as_u64().unwrap_or(0);
+
+    let stars = score["beatmap"]["difficulty_rating"]
+        .as_f64()
+        .unwrap_or(0.0);
+
+    let bm_id = score["beatmap"]["id"].as_u64().unwrap_or(0);
+
+    let bm_data: serde_json::Value = client
+        .get(format!("https://osu.ppy.sh/api/v2/beatmaps/{}", bm_id))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let bm_max_combo = bm_data["max_combo"].as_u64().unwrap_or(0);
+
+    let mods_str = if mods.is_empty() {
+        "None".to_string()
+    } else {
+        mods.join(", ")
+    };
+
+    let pp_str = match pp {
+        Some(p) => format!("{:.2}pp", p),
+        None => "N/A (failed or unranked)".to_string(),
+    };
+
+    let combo_str = format!("{}x / {}x", max_combo, bm_max_combo);
+
+    let title = format!("<:osu:1482134509729349812> {}'s recent score", username);
+
+    let m_str = format!(
+        "[{} - {} [{}]]({})",
+        m_artist, m_title, m_difficulty, bm_url
+    );
+
+    let embed = CreateEmbed::new()
+        .title(&title)
+        .url(format!("https://osu.ppy.sh/users/{}", uid))
+        .description(&m_str)
+        .field("Grade", rank, true)
+        .field("PP", pp_str, true)
+        .field("Accuracy", format!("{:.2}%", accuracy), true)
+        .field("Combo", combo_str, true)
+        .field("Stars", format!("{:.2} <:star:1482800848617738311>", stars), true)
+        .field("Mods", mods_str, true)
+        .field(
+            "Hits",
+            format!(
+                "{} <:hit300t:1482804510819877078> • {} <:hit100t:1482804499759239169> • {} <:hit50:1482799044379017216> • {} <:hit0:1482799042982580315>",
+                c_300, c_100, c_50, c_miss
+            ),
+            true,
+        )
+        .color(0xFF66AA)
+        .thumbnail(format!("https://a.ppy.sh/{}", uid))
+        .image(c_url);
+
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
