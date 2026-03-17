@@ -194,6 +194,10 @@ pub async fn osu(
     let title = format!("<:osu:1482134509729349812> osu! user: {}", username);
     let pfp = format!("https://a.ppy.sh/{}", uid);
     let url = format!("https://osu.ppy.sh/users/{}", uid);
+    let pp = response["statistics"]["pp"]
+        .as_f64()
+        .map(|r| format!("{:.2}", r))
+        .unwrap_or_else(|| "unranked".to_string());
 
     let online_str = if is_online {
         "<a:online:1482134508743426209> Online".to_string()
@@ -238,7 +242,8 @@ pub async fn osu(
     let embed = CreateEmbed::new()
         .title(&title)
         .url(&url)
-        .field("Rank", format!("#{}", &rank), false)
+        .field("Rank", format!("#{}", &rank), true)
+        .field("PP", format!("{}", &pp), true)
         .field("Status", online_str, false)
         .field("Last played:", &last_played_str, false)
         .color(0xFF66AA)
