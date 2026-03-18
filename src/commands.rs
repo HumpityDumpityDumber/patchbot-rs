@@ -409,3 +409,53 @@ pub async fn consequence(
     .await?;
     Ok(())
 }
+
+#[poise::command(prefix_command, category = "osu!")]
+pub async fn lb(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.channel_id().broadcast_typing(&ctx.http()).await?;
+
+    let client = reqwest::Client::new();
+
+    let token = get_osu_token(&client).await?;
+
+    let response: serde_json::Value = client
+        .get(format!(
+            "https://osu.ppy.sh/api/v2/rankings/osu/global?&filter=all"
+        ))
+        .header(USER_AGENT, "patchbot_discord")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/json")
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    let ranking = response["ranking"]
+        .as_array()
+        .ok_or("Missing ranking array")?;
+
+    let mut embed = CreateEmbed::new()
+        .title("<:osu:1482134509729349812> osu! global leaderboard")
+        .url("https://osu.ppy.sh/rankings/osu/global")
+        .color(0xFF66AA);
+
+    for entry in ranking.iter().take(10) {
+        let rank = entry["global_rank"].as_u64().unwrap_or(0);
+        let pp = entry["pp"].as_f64().unwrap_or(0.0);
+        let accuracy = entry["hit_accuracy"].as_f64().unwrap_or(0.0);
+        let username = entry["user"]["username"].as_str().unwrap_or("Unknown");
+        let country = entry["user"]["country"]["code"].as_str().unwrap_or("??");
+        let uid = entry["user"]["id"].as_u64().unwrap_or(0);
+
+        embed = embed.field(
+            format!("#{rank}: {username} :flag_{}:", country.to_lowercase()),
+            format!(
+                "[Profile](https://osu.ppy.sh/users/{uid}) • **{pp:.0}pp** • {accuracy:.2}% acc"
+            ),
+            false,
+        );
+    }
+
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
