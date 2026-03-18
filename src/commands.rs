@@ -1,6 +1,7 @@
 use crate::{Context, Error};
 use once_cell::sync::Lazy;
 use poise::builtins::HelpConfiguration;
+use random_word::Lang;
 use reqwest::header::USER_AGENT;
 use serenity::builder::CreateEmbed;
 use tokio::sync::Mutex;
@@ -18,29 +19,10 @@ pub async fn shutdown(ctx: Context<'_>) -> Result<(), Error> {
     std::process::exit(0);
 }
 
-async fn get_rand_word() -> Result<String, Error> {
-    let client = reqwest::Client::new();
-
-    let words: Vec<String> = client
-        .get("https://random-word-api.herokuapp.com/word")
-        .header(USER_AGENT, "patchbot_discord")
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    let response = words
-        .first()
-        .cloned()
-        .unwrap_or("no word found".to_string());
-
-    Ok(response)
-}
-
 #[poise::command(prefix_command)]
 pub async fn rgif(ctx: Context<'_>) -> Result<(), Error> {
     ctx.channel_id().broadcast_typing(&ctx.http()).await?;
-    let word = get_rand_word().await?;
+    let word = random_word::get(Lang::En);
 
     let client = reqwest::Client::new();
     let url = format!(
