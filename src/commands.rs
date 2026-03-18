@@ -389,3 +389,22 @@ pub async fn osur(
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
+
+#[poise::command(prefix_command)]
+pub async fn consequence(
+    ctx: Context<'_>,
+    #[description = "User to punish."] user: serenity::model::user::User,
+) -> Result<(), Error> {
+    user.dm(
+        &ctx.http(),
+        serenity::builder::CreateMessage::new().content("Your consequence has been delivered."),
+    )
+    .await?;
+
+    ctx.reply(format!(
+        "Consequence initiated for {}.",
+        user.display_name()
+    ))
+    .await?;
+    Ok(())
+}

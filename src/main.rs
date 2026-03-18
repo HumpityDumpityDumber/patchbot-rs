@@ -26,6 +26,7 @@ async fn main() {
                 commands::help(),
                 commands::osu(),
                 commands::osur(),
+                commands::consequence(),
             ],
 
             prefix_options: poise::PrefixFrameworkOptions {

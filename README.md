@@ -34,5 +34,6 @@
 | `>cat` | Random cat. |
 | `>osu` | Grab someone's osu! profile and last played map. |
 | `>osur` | Grab someone's last played map with more detailed stats. |
+| `>consequence` | Scary... |
 
 Feel free to PR a command or feature if you'd like!
