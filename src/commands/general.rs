@@ -8,14 +8,14 @@ pub async fn cat(ctx: Context<'_>) -> Result<(), Error> {
     let client = reqwest::Client::new();
 
     let response: serde_json::Value = client
-        .get("https://api.thecatapi.com/v1/images/search")
+        .get("https://cataas.com/cat?json=1")
         .header(USER_AGENT, "patchbot_discord")
         .send()
         .await?
         .json()
         .await?;
 
-    let cat_url = response[0]["url"].as_str().unwrap_or("no cat found :(");
+    let cat_url = response["url"].as_str().unwrap_or("no cat found :(");
 
     ctx.reply(cat_url).await?;
 
