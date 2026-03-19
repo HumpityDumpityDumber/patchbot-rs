@@ -341,7 +341,7 @@ pub async fn hgraph(
     let uid: u64 = from_value(response["id"].clone()).unwrap();
 
     let thingy: Vec<String> = rank_history.iter().map(|r| r.to_string()).collect();
-    let chart_url = ImageCharts::new().cht("ls").chd(thingy.join(",")).to_url();
+    let chart_url = ImageCharts::new().cht("ls").chd(format!("a:{}", thingy.join(","))).to_url();
 
     let embed = CreateEmbed::new()
         .title(format!(
@@ -349,7 +349,7 @@ pub async fn hgraph(
             username
         ))
         .url(format!("https://osu.ppy.sh/users/{}", uid))
-        .image(format!("a:{}", chart_url))
+        .image(chart_url)
         .color(0xFF66AA);
 
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
